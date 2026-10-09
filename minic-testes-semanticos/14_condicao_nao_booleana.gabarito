@@ -1,0 +1,2 @@
+SEM005 — linha 4, coluna 12: Condição de while deve ter tipo bool; recebeu int (expressão “n”).
+Análise semântica concluída: 1 erro; programa rejeitado.

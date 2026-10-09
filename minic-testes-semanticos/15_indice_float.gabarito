@@ -1,0 +1,2 @@
+SEM006 — linha 3, coluna 11: Índice do vetor “dados” deve ser int; recebeu float (expressão “1.0”).
+Análise semântica concluída: 1 erro; programa rejeitado.

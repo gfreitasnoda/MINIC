@@ -1,0 +1,2 @@
+SEM003 — linha 3, coluna 9: Não é possível atribuir float a int sem conversão permitida (destino “n”; expressão “2.5”).
+Análise semântica concluída: 1 erro; programa rejeitado.
