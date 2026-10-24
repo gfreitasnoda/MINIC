@@ -1,0 +1,3 @@
+Resultado: REJEITAR
+Categoria esperada: erro semântico (código de saída 4)
+Critério: operandos de “+” devem ser numéricos compatíveis; bool não pode ser usado como int implicitamente.

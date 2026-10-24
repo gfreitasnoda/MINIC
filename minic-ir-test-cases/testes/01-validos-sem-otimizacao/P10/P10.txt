@@ -1,0 +1,23 @@
+Resultado: COMPILAR COM SUCESSO
+Modo de referência: IR sem otimização (-O0)
+IR canônica esperada:
+func fatorial(n)
+  t1 = n <= 1
+  ifFalse t1 goto L_rec
+  return 1
+  goto L_end
+L_rec:
+  t2 = n - 1
+  param t2
+  t3 = call fatorial, 1
+  t4 = n * t3
+  return t4
+L_end:
+endfunc
+func main
+  param 5
+  t1 = call fatorial, 1
+  r = t1
+  print r
+  return 0
+endfunc

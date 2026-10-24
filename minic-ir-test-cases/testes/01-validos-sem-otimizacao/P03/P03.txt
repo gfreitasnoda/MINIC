@@ -1,0 +1,16 @@
+Resultado: COMPILAR COM SUCESSO
+Modo de referência: IR sem otimização (-O0)
+IR canônica esperada:
+func combinar(x, y)
+  t1 = x * 10
+  t2 = t1 + y
+  return t2
+endfunc
+func main
+  param 3
+  param 8
+  t1 = call combinar, 2
+  r = t1
+  print r
+  return 0
+endfunc

@@ -1,0 +1,11 @@
+Resultado: COMPILAR COM SUCESSO
+Alvo: eliminação de atribuição morta
+IR de referência (-O0):
+  usado = 9
+  temporario = usado * 3
+  print usado
+IR otimizada esperada (-O1), equivalente:
+  usado = 9
+  print usado
+  return 0
+Verificar: cálculo/definição de temporario não tem uso observável e pode ser removido.

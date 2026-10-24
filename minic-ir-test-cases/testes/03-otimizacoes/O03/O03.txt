@@ -1,0 +1,11 @@
+Resultado: COMPILAR COM SUCESSO
+Alvo: eliminação de cópias
+IR de referência (-O0):
+  origem = 6
+  copia = origem
+  final = copia
+  print final
+IR otimizada esperada (-O1), equivalente:
+  origem = 6
+  print origem
+  return 0

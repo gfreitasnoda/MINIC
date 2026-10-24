@@ -1,8 +1,8 @@
 # Projeto MINIC
 
-Neste repositório encontram-se: um analisador léxico (*lexer/scanner*), um analisador sintático (*parser*) e um analisador semântico para uma linguagem simples no estilo C, disponíveis em duas implementações equivalentes: **Python** (`scanner.py` / `parser.py` / `analisador_semantico.py`) e **C** (`scanner.c` / `parser.c` / `analisador_semantico.c`). As duas seguem a mesma lógica, a mesma gramática e o mesmo formato de saída — a escolha entre elas é apenas uma questão de linguagem de implementação.
+Neste repositório encontram-se: um analisador léxico (*lexer/scanner*), um analisador sintático (*parser*), um analisador semântico, um **gerador de IR**, um **otimizador de IR** e o **driver `minic`** que une todas as etapas, para uma linguagem simples no estilo C, disponíveis em duas implementações equivalentes: **Python** (`scanner.py` / `parser.py` / `analisador_semantico.py` / `gerador_ir.py` / `otimizador_ir.py` / `minic.py`) e **C** (`scanner.c` / `parser.c` / `analisador_semantico.c` / `gerador_ir.c` / `otimizador_ir.c` / `minic.c`). As duas seguem a mesma lógica, a mesma gramática e o mesmo formato de saída — a escolha entre elas é apenas uma questão de linguagem de implementação.
 
-O scanner lê um código-fonte como texto e o transforma em uma sequência de **tokens**, reportando também **erros léxicos** quando encontra caracteres inválidos ou literais mal formados. O parser consome essa sequência de tokens, verifica se ela obedece à gramática da linguagem e monta uma **AST** (árvore sintática abstrata), reportando **erros sintáticos** quando a estrutura do código está incorreta. O analisador semântico percorre a AST, resolve identificadores em uma tabela de símbolos com escopos, verifica tipos e regras de contexto e reporta **erros semânticos** (`SEM001`–`SEM013`).
+O scanner lê um código-fonte como texto e o transforma em uma sequência de **tokens**, reportando também **erros léxicos** quando encontra caracteres inválidos ou literais mal formados. O parser consome essa sequência de tokens, verifica se ela obedece à gramática da linguagem e monta uma **AST** (árvore sintática abstrata), reportando **erros sintáticos** quando a estrutura do código está incorreta. O analisador semântico percorre a AST, resolve identificadores em uma tabela de símbolos com escopos, verifica tipos e regras de contexto e reporta **erros semânticos** (`SEM001`–`SEM013`). Por fim, o gerador de IR converte a AST anotada em um **código intermediário de três endereços**, o otimizador de IR reduz esse código, e o `minic` coordena o pipeline completo e produz o relatório final.
 
 ## Sumário
 
@@ -29,10 +29,29 @@ O scanner lê um código-fonte como texto e o transforma em uma sequência de **
 - [AST anotada](#ast-anotada)
 - [Exemplo de uso do analisador semântico](#exemplo-de-uso-do-analisador-semântico)
 - [Saída de exemplo do analisador semântico](#saída-de-exemplo-do-analisador-semântico)
+- [Gerador de IR](#gerador-de-ir)
+- [Como funciona o gerador de IR](#como-funciona-o-gerador-de-ir)
+- [Formato da IR](#formato-da-ir)
+- [Convenções de nomes e rótulos](#convenções-de-nomes-e-rótulos)
+- [Sinalizadores de recursos usados](#sinalizadores-de-recursos-usados)
+- [Referência das funções do gerador](#referência-das-funções-do-gerador)
+- [Exemplo de uso do gerador de IR](#exemplo-de-uso-do-gerador-de-ir)
+- [Otimizador de IR](#otimizador-de-ir)
+- [Como funciona o otimizador](#como-funciona-o-otimizador)
+- [Transformações implementadas](#transformações-implementadas)
+- [Modo -O2: otimização completa](#modo--o2-otimização-completa)
+- [Modo -O1: um alvo por vez](#modo--o1-um-alvo-por-vez)
+- [Referência das funções do otimizador](#referência-das-funções-do-otimizador)
+- [Exemplo de uso do otimizador](#exemplo-de-uso-do-otimizador)
+- [Driver minic](#driver-minic)
+- [Uso](#uso)
+- [Formato da saída](#formato-da-saída)
+- [Códigos de saída](#códigos-de-saída)
+- [Funções do driver](#funções-do-driver)
 
 ## Visão geral
 
-O projeto implementa as três primeiras etapas de um compilador/interpretador: **análise léxica** (scanner), **análise sintática** (parser) e **análise semântica** (analisador semântico). As três etapas existem tanto em Python quanto em C, com comportamento equivalente entre as versões.
+O projeto implementa o *front-end* de um compilador (**análise léxica**, **análise sintática** e **análise semântica**) e uma parte do *back-end*: **geração de código intermediário** (gerador de IR) e **otimização** (otimizador de IR). O driver `minic` encadeia todas as etapas. Tudo existe tanto em Python quanto em C, com comportamento equivalente entre as versões.
 
 Dado um código-fonte, o **scanner**:
 
@@ -51,7 +70,7 @@ Em seguida, o **parser** recebe a lista de tokens gerada pelo scanner e:
 3. Registra erros sintáticos quando encontra um token inesperado no meio de uma produção, sem abortar a análise inteira — ele tenta se recuperar e continuar procurando outros erros.
 4. Ao final, se não houver nenhum erro (léxico ou sintático), a AST é considerada válida e pode ser exibida/serializada; havendo qualquer erro, o código inteiro é rejeitado.
 
-As seções a seguir detalham primeiro o scanner e depois o parser.
+As seções a seguir detalham o scanner, o parser, o analisador semântico, o gerador de IR, o otimizador de IR e, por fim, o driver `minic`.
 
 ## Como funciona o scanner
 
@@ -639,3 +658,419 @@ Para um programa sem erros semânticos:
 ```
 Análise semântica concluída: 0 erros; programa aceito.
 ```
+
+---
+
+# Gerador de IR
+
+O gerador de IR (`gerador_ir.py` / `gerador_ir.c`) implementa a etapa de **geração de código intermediário**, logo após o analisador semântico. Ele percorre a **AST anotada** (campo `sem`, produzido pela análise semântica) e emite uma **IR linear de três endereços**, em texto, no estilo de código de três endereços com rótulos e saltos.
+
+Como nas etapas anteriores, existe em Python (classe `GeradorIR`) e em C (estrutura `GeradorIR` e funções `gi_*`), com o mesmo comportamento e a mesma saída. A versão em C inclui `analisador_semantico.c` (que inclui `parser.c` e `scanner.c`).
+
+## Como funciona o gerador de IR
+
+- O gerador é um **visitor** sobre a AST: para cada tipo de nó existe um método `visit_<Nó>` (`visit_Function`, `visit_If`, `visit_Binary` etc.). Um nó sem visitor gera `NotImplementedError`.
+- **Comandos** emitem linhas diretamente; **expressões** devolvem o *operando* onde o resultado fica (um literal, um nome de variável ou um temporário `tN`).
+- Em expressões binárias, o operando da **esquerda é avaliado antes** do da direita. Em chamadas, os argumentos são avaliados em ordem, e o temporário do resultado só é criado **depois** dos `param`.
+- `&&` e `||` viram as operações `and` e `or` e **não** usam curto-circuito: os dois operandos são sempre avaliados antes da operação.
+- Declarações de variáveis globais (fora de funções) emitem `x = valor` no recuo base, fora de qualquer `func`. Declarações de vetor não geram instrução.
+- Variáveis locais sem inicializador não geram instrução.
+
+## Formato da IR
+
+Cada função é delimitada por `func nome(params)` e `endfunc`. As instruções têm recuo de 2 espaços; os rótulos ficam na coluna 0.
+
+| Forma | Significado |
+|---|---|
+| `func nome(a, b)` ... `endfunc` | Início e fim de função (sem parênteses se não houver parâmetros). |
+| `x = valor` | Cópia/atribuição. `valor` pode ser literal, variável ou temporário. |
+| `t1 = a op b` | Operação binária: `+ - * / % < <= > >= == !=`, `and`, `or`. |
+| `t1 = -a` / `t1 = not a` | Operações unárias. |
+| `t1 = idx * 1` | Cálculo do deslocamento de um índice de vetor (fator de escala `ESCALA = 1`). |
+| `t2 = load v[t1]` | Leitura de elemento de vetor. |
+| `store v[t1], valor` | Escrita em elemento de vetor. |
+| `ifFalse c goto L` | Salto condicional quando `c` é falso. |
+| `goto L` / `L:` | Salto incondicional e definição de rótulo. |
+| `param x` | Empilha um argumento. |
+| `call f, n` / `t1 = call f, n` | Chamada com `n` argumentos (com ou sem resultado). |
+| `return` / `return x` | Retorno de função. |
+| `print x` | Impressão. |
+| `read x` / `read v[t1]` | Leitura para variável ou para elemento de vetor. |
+
+Literais: `true`/`false` para `bool`, strings em JSON entre aspas duplas, `char` entre apóstrofos (com `'` interno escapado), números como no código-fonte.
+
+## Convenções de nomes e rótulos
+
+- **Temporários** são `t1`, `t2`, ... e a numeração **reinicia a cada função**.
+- **Rótulos** são descritivos e únicos por função: `L_test`, `L_end`, `L_else`, `L_end_if`, `L_inc`, `L_rec`. Em caso de repetição, recebem sufixo numérico (`L_end_2`, `L_end_3`...).
+- **Sombreamento léxico:** quando o mesmo nome é declarado mais de uma vez na mesma função (símbolos diferentes), os símbolos são renomeados. Com **dois** símbolos, `x#outer` e `x#inner`; com três ou mais, `x#1`, `x#2`, `x#3`... O símbolo de cada nó vem de `sem.simbolo`.
+
+| Construção | IR gerada |
+|---|---|
+| `if` sem `else` | `ifFalse c goto L_end_if` · então · `L_end_if:` |
+| `if` com `else` | `ifFalse c goto L_else` · então · `goto L_end` · `L_else:` · senão · `L_end:` |
+| `while` | `L_test:` · condição · `ifFalse c goto L_end` · corpo · `goto L_test` · `L_end:` |
+| `for` | init · `L_test:` · condição · `ifFalse c goto L_end` · corpo · (`L_inc:`) · incremento · `goto L_test` · `L_end:` |
+| `break` | `goto` para o `L_end` do laço mais interno. |
+| `continue` | `goto` para o `L_test` (em `while`) ou para `L_inc` (em `for`). `L_inc:` só é emitido se algum `continue` foi usado. |
+| Chamada `void` como comando | `call f, n` sem temporário. |
+| Atribuição encadeada | A atribuição devolve o nome do destino, que é reaproveitado como operando. |
+
+### Padrões especiais
+
+- **Guarda com retorno:** um `if` sem `else` cujo ramo "então" termina em `return` e que é seguido de outros comandos é gerado como `ifFalse c goto L_rec` · então · `goto L_end` · `L_rec:` · *comandos restantes* · `L_end:`. Esses dois rótulos são "fixos" (não ativam a observação "rótulos podem variar").
+- **Inicialização antecipada do `for`:** se uma variável é declarada sem inicializador e o próximo `for` que a usa começa com `x = literal`, essa atribuição é emitida logo na posição da declaração e não é repetida no `for`.
+
+## Sinalizadores de recursos usados
+
+O gerador registra o que foi utilizado, e o `minic` usa isso para montar o cabeçalho da saída:
+
+| Atributo | Ativado quando |
+|---|---|
+| `usou_rotulos` | Algum rótulo não fixo foi criado (`if`, `while`, `for`). |
+| `usou_vetor` | Houve cálculo de endereço de vetor (leitura, escrita ou `read`). |
+| `usou_logico` | Houve `and`, `or` ou `not`. |
+| `usou_sombra` | Algum nome foi renomeado por sombreamento. |
+
+## Referência das funções do gerador
+
+| Função (Python) | Descrição |
+|---|---|
+| `gerar(ast)` | API principal: zera o estado, visita a AST e devolve a IR como texto (uma linha por instrução, terminada em `\n`). |
+| `visitar(no)` | Despacha para `visit_<tipo do nó>`. |
+| `emitir(texto)` / `rotulo_def(rotulo)` | Acrescenta uma instrução (com recuo) ou um rótulo (coluna 0). |
+| `novo_temp()` / `novo_rotulo(base, fixo)` | Criam um temporário `tN` ou um rótulo único. |
+| `_preparar_nomes(func)` / `_nome(no)` | Detectam símbolos sombreados e devolvem o nome final de cada identificador. |
+| `_visitar_itens(itens)` | Visita os itens de um bloco em ordem, aplicando a antecipação do `for` e o padrão de guarda. |
+| `_eh_guarda_com_retorno` / `_gerar_guarda` | Reconhecem e geram o padrão de guarda com retorno. |
+| `_antecipar_init_for(decl, resto)` | Implementa a inicialização antecipada do `for`. |
+| `_endereco(idx_no)` | Emite o cálculo `t = idx * ESCALA` e devolve `(base, t)`. |
+| `_gerar_chamada(no, com_resultado)` | Emite `param`s e `call`, com ou sem temporário de resultado. |
+| `visit_*` | Um visitor por nó da AST (`Program`, `Function`, `Block`, `VarDecl`, `If`, `While`, `For`, `Return`, `Break`, `Continue`, `Print`, `Read`, `ExprStmt`, `Assign`, `Binary`, `Unary`, `Call`, `Index`, `Id`, `Lit`). |
+
+> Na versão em C, as funções equivalentes têm o prefixo `gi_` (`gi_visit_for`, `gi_novo_rotulo`, `gi_gerar` etc.).
+
+## Exemplo de uso do gerador de IR
+
+O gerador é normalmente chamado pelo `minic`, mas também pode ser usado diretamente em Python:
+
+```python
+from analisador_semantico import analisar_codigo
+from gerador_ir import GeradorIR
+
+res = analisar_codigo(codigo)
+if res.sucesso:
+    g = GeradorIR()
+    ir = g.gerar(res.ast)
+    print(ir)
+```
+
+Para o código:
+
+```c
+int main() {
+    int a = 2 + 3;
+    int b = a * 4;
+    print(b);
+    return 0;
+}
+```
+
+a IR gerada é:
+
+```
+func main
+  t1 = 2 + 3
+  a = t1
+  t2 = a * 4
+  b = t2
+  print b
+  return 0
+endfunc
+```
+
+---
+
+# Otimizador de IR
+
+O otimizador (`otimizador_ir.py` / `otimizador_ir.c`) recebe a **IR em texto** produzida pelo gerador e devolve uma IR equivalente com menos instruções. Ele trabalha apenas sobre o texto da IR (não depende da AST) e oferece dois modos:
+
+- **`otimizar(ir)` (modo `-O2`)**: aplica **todas** as otimizações, repetidamente, a cada função, e devolve a IR otimizada.
+- **`otimizar_alvo(ir)` (modo `-O1`)**: identifica **uma** oportunidade de otimização (a de maior prioridade) e devolve um relatório com o alvo, a IR de referência (sem otimizar) e a IR otimizada.
+
+A versão em C (funções `ot_*`) usa inteiros de 128 bits (`__int128`, portanto GCC ou Clang) no lugar dos inteiros ilimitados do Python e uma arena de memória liberada ao fim de cada operação pública; o comportamento é o mesmo.
+
+## Como funciona o otimizador
+
+1. **Segmentação** (`_segmentar`): o texto é dividido em *partes*: funções (`func ... endfunc`) e linhas soltas (inicializações globais). Cada linha de função é convertida em uma **tupla** de instrução (`copy`, `bin`, `un`, `load`, `store`, `ifFalse`, `goto`, `label`, `print`, `param`, `call`, `read`, `readidx`, `ret`).
+2. **Variáveis globais** são os nomes atribuídos fora de funções, mais os nomes não temporários usados em **mais de uma função** (parâmetros excluídos). Globais nunca são removidas por código morto, e seus valores conhecidos são esquecidos após cada `call`.
+3. Cada função é otimizada de forma **independente**, sobre o seu **grafo de fluxo de controle** (CFG), construído por `construir_cfg` (blocos básicos e sucessores).
+4. **Falha segura:** se uma linha não pode ser interpretada, se falta um rótulo ou se uma análise iterativa não converge (`KeyError`/`RuntimeError`), a função afetada é devolvida **sem alteração**.
+5. No fim, `compactar_temps` renumera os temporários sem buracos (`t1`, `t2`, ...).
+
+## Transformações implementadas
+
+| Transformação | Função | O que faz |
+|---|---|---|
+| Propagação de constantes e cópias | `propagar`, `passo` | Análise de fluxo de dados sobre o CFG (interseção nos pontos de junção) que substitui operandos por constantes ou cópias conhecidas. |
+| Dobra de constantes | `fold_bin`, `simp_un` | Avalia operações entre literais `int` e `bool` (aritmética, comparações, `and`, `or`, `not`). |
+| Simplificação algébrica | `alg_bin` | `x+0`, `x-0`, `x*1`, `x/1`, `and`/`or` com `true`/`false`. |
+| Dobra de condições | `passo` | `ifFalse true` é removido; `ifFalse false` vira `goto`. |
+| Subexpressão comum local | `cse_local` | Reaproveita resultados de `bin`/`un` iguais dentro de um bloco (operações comutativas são normalizadas). |
+| Fluxo de controle | `limpar_fluxo` | Remove blocos inalcançáveis, rótulos sem uso e saltos para a instrução seguinte. |
+| Code motion (LICM) | `mover_invariantes` | Move para antes do laço temporários invariantes (definidos uma única vez, com operandos não modificados no laço). |
+| Redução de força | `reduzir_forca` | Troca `v * c` por uma variável de atualização incremental quando `v` é variável de indução com valor inicial literal. |
+| Código morto | `eliminar_mortos` | Usa análise de vivacidade (`_vivas_entrada`) para remover definições sem uso; `call` sem uso do resultado perde só o destino. |
+| Fusão de temporários | `fundir_temporarios` | Transforma `t = a + b` seguido de `x = t` em `x = a + b` quando `t` morre ali. |
+
+### Regras de segurança
+
+- A dobra de constantes só ocorre para **`int` dentro de 32 bits** (`-2^31` a `2^31-1`); resultados que estouram **não** são dobrados. Divisão e módulo seguem **truncamento em direção a zero** e nunca são dobrados com divisor zero. Valores `float` não são dobrados.
+- Divisões e módulos cujo divisor não é uma constante diferente de zero (`_div_perigosa`) **não** são removidos nem movidos para fora de laços.
+- Code motion e redução de força só são aplicadas em laços de **entrada única** (nenhum salto externo cai no meio do laço), e LICM não move expressões que dependem de globais quando o laço contém `call`.
+- Instruções com efeito observável (`print`, `read`, `param`, `call`, `store`, `return`) nunca são removidas.
+
+## Modo `-O2`: otimização completa
+
+`otimizar_funcao` repete até **30 vezes** (ou até a IR parar de mudar) a sequência:
+
+```
+propagar → cse_local → limpar_fluxo → mover_invariantes → eliminar_mortos
+```
+
+e, ao final, aplica `fundir_temporarios` e `limpar_fluxo`. A redução de força **não** faz parte do `-O2`; ela só aparece no modo `-O1`.
+
+## Modo `-O1`: um alvo por vez
+
+`otimizar_alvo` testa os alvos abaixo **em ordem de prioridade** e aplica apenas o primeiro que for detectado em alguma função. Cada alvo usa uma configuração restrita das transformações, de modo que o resultado ilustre somente aquela otimização.
+
+| Prioridade | Classe | Alvo informado no relatório |
+|---|---|---|
+| 1 | `inalcancavel` | eliminação de código morto/inalcançável (ativa o aviso opcional) |
+| 2 | `licm` | code motion de expressão loop-invariant |
+| 3 | `forca` | redução de força / atualização incremental de expressão relacionada à indução |
+| 4 | `cse` | eliminação de subexpressão comum local |
+| 5 | `algebra` | simplificação algébrica e propagação de cópias |
+| 6 | `copias` | eliminação de cópias |
+| 7 | `morta` | eliminação de atribuição morta |
+| 8 | `constantes` | dobra de condição constante, propagação de constantes/dobra algébrica ou propagação global de constantes (o texto varia conforme o caso) |
+| 9 | `geral` | otimizações gerais (constantes, cópias, subexpressões, código morto) |
+
+Se nenhum alvo é detectado, o relatório traz `nenhuma oportunidade de otimização encontrada`.
+
+### Relatório devolvido
+
+`otimizar_alvo` devolve um dicionário:
+
+| Chave | Conteúdo |
+|---|---|
+| `alvo` | Descrição textual da otimização escolhida. |
+| `classe` | Identificador da classe (tabela acima, ou `nenhuma`). |
+| `ref` | IR de referência (sem otimizar). Para `licm` e `forca`, é cortada no salto de volta do laço. |
+| `titulo` | Título da IR otimizada (`IR otimizada esperada (-O1), equivalente:` ou, no caso de `forca`, `IR otimizada possível (-O1), equivalente:`). |
+| `opt` | IR otimizada. |
+| `extras` | Linhas adicionais (`Observação:`, `Critério:`, `Verificar:`). |
+| `aviso` | `True` para `inalcancavel` (aviso opcional de código inalcançável). |
+
+Detalhes de apresentação: quando o programa tem uma única função `main`, apenas o corpo é exibido (sem `func`/`endfunc`) e o `return 0` final é omitido da referência. No alvo `inalcancavel`, chamadas com zero argumentos aparecem precedidas de um `param` vazio na IR otimizada.
+
+## Referência das funções do otimizador
+
+| Função (Python) | Descrição |
+|---|---|
+| `parse(txt)` / `fmt(ins)` | Convertem uma linha de IR em tupla e vice-versa. |
+| `usos(ins)` / `defs(ins)` | Operandos (não literais) lidos e nome definido por uma instrução. |
+| `eh_lit(x)` | Indica se um operando é literal (número, `true`/`false`, string ou char). |
+| `construir_cfg(instrs)` | Divide em blocos básicos e calcula os sucessores. |
+| `propagar` / `passo` / `Cfg` | Propagação de constantes/cópias; `Cfg` liga/desliga constantes, álgebra e cópias. |
+| `fold_bin` / `alg_bin` / `simp_bin` / `simp_un` | Dobra de constantes e simplificações algébricas. |
+| `cse_local` | Eliminação de subexpressão comum dentro de blocos. |
+| `limpar_fluxo` | Remove código inalcançável, rótulos e saltos redundantes. |
+| `mover_invariantes` | Uma passada de code motion (a mais interna primeiro). |
+| `reduzir_forca` | Uma passada de redução de força por variável de indução. |
+| `eliminar_mortos` / `fundir_temporarios` | Código morto e fusão de temporários, ambos por vivacidade. |
+| `compactar_temps` | Renumera os temporários. |
+| `otimizar_funcao(instrs, glob)` | Pipeline do `-O2` para uma função. |
+| `otimizar(ir_texto)` | API do modo `-O2`: texto → texto. |
+| `otimizar_alvo(ir_texto)` | API do modo `-O1`: texto → relatório (dicionário). |
+
+> Na versão em C, as funções equivalentes têm o prefixo `ot_` (`ot_propagar`, `ot_otimizar`, `ot_otimizar_alvo` etc.).
+
+## Exemplo de uso do otimizador
+
+```python
+from otimizador_ir import otimizar, otimizar_alvo
+
+ir = """func main
+  x = 3
+  y = 4
+  s = 0
+  i = 0
+L_test:
+  t1 = i < 10
+  ifFalse t1 goto L_end
+  t2 = x * y
+  t3 = s + t2
+  s = t3
+  t4 = i + 1
+  i = t4
+  goto L_test
+L_end:
+  print s
+  return 0
+endfunc
+"""
+
+print(otimizar(ir))          # -O2: todas as otimizações
+rel = otimizar_alvo(ir)      # -O1: um alvo
+print(rel["alvo"], rel["opt"], sep="\n")
+```
+
+Com `-O2`, a propagação de constantes dobra `x * y` para `12` e remove as atribuições mortas:
+
+```
+func main
+  s = 0
+  i = 0
+L_test:
+  t1 = i < 10
+  ifFalse t1 goto L_end
+  s = s + 12
+  i = i + 1
+  goto L_test
+L_end:
+  print s
+  return 0
+endfunc
+```
+
+Com `-O1`, o alvo detectado é `code motion de expressão loop-invariant`, e a IR otimizada traz `t2 = x * y` movido para antes de `L_test:`.
+
+---
+
+# Driver `minic`
+
+O `minic` (`minic.py` / `minic.c`) é o **programa principal** que une todas as etapas:
+
+```
+scanner → parser → analisador semântico → gerador de IR → otimizador de IR
+```
+
+Ele lê um arquivo-fonte, executa o pipeline e imprime na saída padrão um relatório textual: ou **`COMPILAR COM SUCESSO`**, seguido da IR, ou **`REJEITAR`**, com a categoria do erro e o critério.
+
+A versão em Python importa `scanner`, `analisador_semantico`, `gerador_ir` e `otimizador_ir`. A versão em C inclui `gerador_ir.c` e `otimizador_ir.c` (e, por eles, o analisador semântico, o parser e o scanner), então **todos os `.c` devem estar na mesma pasta**.
+
+## Uso
+
+```bash
+python3 minic.py caminho/para/arquivo.c [-O0 | -O1 | -O2]
+```
+
+Ou, usando a versão em C:
+
+```bash
+gcc -o minic minic.c -lm
+./minic caminho/para/arquivo.c [-O0 | -O1 | -O2]
+```
+
+### Níveis de otimização
+
+| Nível | Efeito |
+|---|---|
+| `-O0` (padrão) | IR sem otimização, direto do gerador. |
+| `-O1` | Relatório de **um alvo** de otimização (`otimizar_alvo`). |
+| `-O2` | IR com **todas** as otimizações (`otimizar`). |
+
+O nível é escolhido, por ordem: pela opção `-O0`/`-O1`/`-O2` na linha de comando; pela variável de ambiente `MINIC_OPT` (`1`/`O1` ou `2`/`O2`); ou, se nenhuma das duas foi informada, pelo **nome do arquivo**: um arquivo cujo nome-base é `O` seguido de dígitos (por exemplo `O3.c`) é compilado com `-O1`.
+
+### Variáveis de ambiente
+
+| Variável | Efeito |
+|---|---|
+| `MINIC_OPT` | Define o nível de otimização (`1`, `O1`, `2`, `O2`). Quando presente, desativa a escolha pelo nome do arquivo. |
+| `MINIC_DEBUG` | Se definida, imprime em `stderr` os erros léxicos, sintáticos e semânticos completos. |
+
+## Formato da saída
+
+**Sucesso em `-O0`:**
+
+```
+Resultado: COMPILAR COM SUCESSO[ (assumindo a política MINIC de sombreamento léxico)]
+Modo de referência: IR sem otimização (-O0)
+IR canônica esperada[ complemento]:
+<IR>
+[Observações]
+```
+
+O `complemento` depende dos sinalizadores do gerador, nesta ordem de prioridade: `(LOAD/STORE equivalentes aceitos)` se há vetor; `(curto-circuito ou operação lógica explícita)` se há operação lógica; `(rótulos podem variar)` se há rótulos não fixos. As observações finais são `Observação: o fator de escala do endereço...` (vetores) e `Observação: nomes temporários/endereços de símbolos...` (sombreamento).
+
+**Sucesso em `-O1`:**
+
+```
+Resultado: COMPILAR COM SUCESSO[ (aviso opcional de código inalcançável)]
+Alvo: <alvo>
+IR de referência (-O0):
+<ref>
+<título>
+<IR otimizada>
+<linhas extras>
+```
+
+**Sucesso em `-O2`:**
+
+```
+Resultado: COMPILAR COM SUCESSO
+Modo de referência: IR otimizada (-O2)
+IR otimizada (todas as otimizações):
+<IR>
+```
+
+Para o código de exemplo do gerador (`a = 2 + 3; b = a * 4; print(b)`), a saída em `-O2` é:
+
+```
+Resultado: COMPILAR COM SUCESSO
+Modo de referência: IR otimizada (-O2)
+IR otimizada (todas as otimizações):
+func main
+  print 20
+  return 0
+endfunc
+```
+
+**Rejeição:**
+
+```
+Resultado: REJEITAR
+Categoria esperada: erro <léxico|sintático|semântico> (código de saída N)
+Critério: <descrição>
+```
+
+O critério é montado a partir do **primeiro** erro da etapa que rejeitou a entrada:
+
+- **Léxico:** `diagnóstico de símbolo “@” não reconhecido.` para um caractere isolado, ou `diagnóstico léxico: <código> “<lexema>”.` nos demais casos.
+- **Sintático:** `diagnóstico de “;” esperado.` (ou `... após declaração local.` quando a linha anterior é uma declaração); nos demais casos, a própria mensagem do parser.
+- **Semântico:** a mensagem do primeiro diagnóstico é classificada por palavras-chave (acentos e maiúsculas são ignorados): `break`/`continue` fora de laço, índice não `int`, retorno incompatível (com tipos e nome da função), número de argumentos, declaração duplicada, identificador não declarado, operando `bool` em operador aritmético, conversão implícita `bool -> int`. Se nada casa, o texto bruto da mensagem é usado.
+
+## Códigos de saída
+
+| Código | Significado |
+|---|---|
+| `0` | Compilação com sucesso. |
+| `1` | Erro de E/S (arquivo não informado ou ilegível) ou limite de aninhamento excedido. |
+| `2` | Erro léxico. |
+| `3` | Erro sintático. |
+| `4` | Erro semântico. |
+
+> Esses códigos valem para o `minic`. O `analisador_semantico` executado isoladamente mantém os códigos próprios descritos na seção do analisador semântico.
+
+## Funções do driver
+
+| Função (Python) | Descrição |
+|---|---|
+| `compilar(codigo, nivel)` | Executa o pipeline e devolve `(código de saída, texto)`. Captura o limite de aninhamento (`RecursionError`/`LimiteAninhamento`). |
+| `montar_saida(g, ir)` / `montar_saida_o1(r)` / `montar_saida_o2(ir)` | Montam o texto de sucesso de cada nível. |
+| `montar_rejeicao(categoria, codigo, criterio)` | Monta o texto de rejeição. |
+| `_criterio_lexico` / `_criterio_sintatico` / `_criterio_semantico` | Derivam o critério a partir do primeiro erro. |
+| `main()` | Interpreta `-O0/-O1/-O2` e `MINIC_OPT`, lê o arquivo, chama `compilar` e encerra com o código de saída. |
+
+> Na versão em C, as funções equivalentes têm o prefixo `mc_` (`mc_compilar`, `mc_montar_rejeicao` etc.).

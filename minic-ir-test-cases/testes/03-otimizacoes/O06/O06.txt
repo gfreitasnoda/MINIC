@@ -1,0 +1,10 @@
+Resultado: COMPILAR COM SUCESSO
+Alvo: reaching definitions/propagação global de constantes e dobra
+IR de referência (-O0):
+  limite = 8
+  t1 = limite + 2
+  resultado = t1
+  print resultado
+IR otimizada esperada (-O1), equivalente:
+  print 10
+  return 0

@@ -1,0 +1,31 @@
+id	grupo	descricao
+P01	plain	Atribuições e saída
+P02	plain	Precedência aritmética
+P03	plain	Função e parâmetros
+P04	plain	Condicional com dois ramos
+P05	plain	Laço while
+P06	plain	Laço for
+P07	plain	Vetor e acesso indexado
+P08	plain	Booleanos e operadores relacionais
+P09	plain	Escopo de bloco e sombreamento
+P10	plain	Recursão
+E01	error	Identificador não declarado
+E02	error	Declaração duplicada no mesmo escopo
+E03	error	Atribuição de tipos incompatíveis
+E04	error	Operação aritmética sobre booleano
+E05	error	Número incorreto de argumentos
+E06	error	Retorno incompatível com a função
+E07	error	break fora de laço
+E08	error	Índice de vetor não inteiro
+E09	error	Ponto e vírgula ausente
+E10	error	Símbolo léxico inválido
+O01	opt	Propagação e dobra de constantes
+O02	opt	Identidades algébricas
+O03	opt	Eliminação de cópias
+O04	opt	Eliminação de código morto
+O05	opt	Eliminação de subexpressão comum
+O06	opt	Propagação global de constante
+O07	opt	Dobra de condição e remoção de ramo
+O08	opt	Movimento de código invariável em laço
+O09	opt	Redução de força em variável de indução
+O10	opt	Código inalcançável após retorno

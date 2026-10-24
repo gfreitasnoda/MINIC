@@ -1,0 +1,3 @@
+Resultado: REJEITAR
+Categoria esperada: erro semântico (código de saída 4)
+Critério: retorno bool incompatível com o tipo int declarado para obter.

@@ -1,0 +1,15 @@
+Resultado: COMPILAR COM SUCESSO
+Modo de referência: IR sem otimização (-O0)
+IR canônica esperada (rótulos podem variar):
+func main
+  n = 9
+  t1 = n < 10
+  ifFalse t1 goto L_else
+  r = 1
+  goto L_end
+L_else:
+  r = 2
+L_end:
+  print r
+  return 0
+endfunc

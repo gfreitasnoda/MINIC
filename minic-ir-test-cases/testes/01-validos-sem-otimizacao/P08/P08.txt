@@ -1,0 +1,14 @@
+Resultado: COMPILAR COM SUCESSO
+Modo de referência: IR sem otimização (-O0)
+IR canônica esperada (curto-circuito ou operação lógica explícita):
+func main
+  p = true
+  q = false
+  t1 = not q
+  t2 = p and t1
+  r = t2
+  ifFalse r goto L_end_if
+  print 1
+L_end_if:
+  return 0
+endfunc

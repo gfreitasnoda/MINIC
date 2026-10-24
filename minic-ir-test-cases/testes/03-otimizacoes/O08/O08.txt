@@ -1,0 +1,34 @@
+Resultado: COMPILAR COM SUCESSO
+Alvo: code motion de expressão loop-invariant
+IR de referência (-O0):
+  i = 0
+  x = 6
+  y = 7
+  soma = 0
+L_test:
+  t1 = i < 4
+  ifFalse t1 goto L_end
+  t2 = x * y
+  t3 = soma + t2
+  soma = t3
+  t4 = i + 1
+  i = t4
+  goto L_test
+IR otimizada esperada (-O1), equivalente:
+  i = 0
+  x = 6
+  y = 7
+  soma = 0
+  t2 = x * y
+L_test:
+  t1 = i < 4
+  ifFalse t1 goto L_end
+  t3 = soma + t2
+  soma = t3
+  t4 = i + 1
+  i = t4
+  goto L_test
+L_end:
+  print soma
+  return 0
+Observação: mover antes do laço é seguro porque x e y não são modificados no laço.

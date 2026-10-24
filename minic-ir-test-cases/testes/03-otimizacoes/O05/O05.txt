@@ -1,0 +1,24 @@
+Resultado: COMPILAR COM SUCESSO
+Alvo: eliminação de subexpressão comum local
+IR de referência (-O0):
+  a = 3
+  b = 7
+  t1 = a * b
+  t2 = t1 + 1
+  x = t2
+  t3 = a * b
+  t4 = t3 + 2
+  y = t4
+  print x
+  print y
+IR otimizada esperada (-O1), equivalente:
+  a = 3
+  b = 7
+  t1 = a * b
+  t2 = t1 + 1
+  x = t2
+  t3 = t1 + 2
+  y = t3
+  print x
+  print y
+  return 0

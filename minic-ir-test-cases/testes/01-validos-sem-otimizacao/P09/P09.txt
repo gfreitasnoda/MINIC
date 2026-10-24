@@ -1,0 +1,11 @@
+Resultado: COMPILAR COM SUCESSO (assumindo a política MINIC de sombreamento léxico)
+Modo de referência: IR sem otimização (-O0)
+IR canônica esperada:
+func main
+  x#outer = 5
+  x#inner = 8
+  print x#inner
+  print x#outer
+  return 0
+endfunc
+Observação: nomes temporários/endereços de símbolos podem substituir a notação #outer/#inner.

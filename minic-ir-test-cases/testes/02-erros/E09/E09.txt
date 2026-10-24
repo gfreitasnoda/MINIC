@@ -1,0 +1,3 @@
+Resultado: REJEITAR
+Categoria esperada: erro sintático (código de saída 3)
+Critério: diagnóstico de “;” esperado após declaração local.

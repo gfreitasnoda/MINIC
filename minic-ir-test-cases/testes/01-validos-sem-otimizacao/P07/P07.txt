@@ -1,0 +1,14 @@
+Resultado: COMPILAR COM SUCESSO
+Modo de referência: IR sem otimização (-O0)
+IR canônica esperada (LOAD/STORE equivalentes aceitos):
+func main
+  i = 1
+  t1 = i * 1
+  store v[t1], 12
+  t2 = i * 1
+  t3 = load v[t2]
+  x = t3
+  print x
+  return 0
+endfunc
+Observação: o fator de escala do endereço depende da representação adotada; deve haver cálculo de endereço e operações de leitura/escrita do vetor.

@@ -1,0 +1,10 @@
+Resultado: COMPILAR COM SUCESSO
+Alvo: propagação de constantes + simplificação/dobra algébrica
+IR de referência (-O0):
+  a = 2 + 3
+  b = a * 4
+  print b
+IR otimizada esperada (-O1), equivalente:
+  print 20
+  return 0
+Verificar: remoção de temporários/atribuições tornou-se possível; resultado observável permanece 20.

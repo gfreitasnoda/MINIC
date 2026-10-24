@@ -1,0 +1,3 @@
+Resultado: REJEITAR
+Categoria esperada: erro léxico (código de saída 2)
+Critério: diagnóstico de símbolo “@” não reconhecido.

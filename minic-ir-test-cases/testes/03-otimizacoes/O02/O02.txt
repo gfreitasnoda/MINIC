@@ -1,0 +1,13 @@
+Resultado: COMPILAR COM SUCESSO
+Alvo: simplificação algébrica e propagação de cópias
+IR de referência (-O0):
+  x = 13
+  t1 = x + 0
+  a = t1
+  t2 = a * 1
+  b = t2
+  print b
+IR otimizada esperada (-O1), equivalente:
+  x = 13
+  print x
+  return 0

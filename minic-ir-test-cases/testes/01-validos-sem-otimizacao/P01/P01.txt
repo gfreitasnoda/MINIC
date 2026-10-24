@@ -1,0 +1,11 @@
+Resultado: COMPILAR COM SUCESSO
+Modo de referência: IR sem otimização (-O0)
+IR canônica esperada:
+func main
+  a = 7
+  b = 4
+  t1 = a + b
+  c = t1
+  print c
+  return 0
+endfunc

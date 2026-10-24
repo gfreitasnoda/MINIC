@@ -1,0 +1,14 @@
+Resultado: COMPILAR COM SUCESSO
+Alvo: dobra de condição constante + eliminação de código inalcançável
+IR de referência (-O0):
+  t1 = 3 < 5
+  ifFalse t1 goto L_else
+  r = 11
+  goto L_end
+L_else:
+  r = 22
+L_end:
+  print r
+IR otimizada esperada (-O1), equivalente:
+  print 11
+  return 0

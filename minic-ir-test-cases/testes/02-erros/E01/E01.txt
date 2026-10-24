@@ -1,0 +1,3 @@
+Resultado: REJEITAR
+Categoria esperada: erro semântico (código de saída 4)
+Critério: diagnóstico de identificador “fantasma” não declarado; não emitir IR executável como se a compilação tivesse sucesso.
